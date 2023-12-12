@@ -44,7 +44,14 @@ impl<const T: usize> EngineBehavior<T> for AmpersandEngine<T> {
 
             search_info.nodes = 0;
 
-            let new_score = negamax(board, &mut search_info, depth, 0);
+            let new_score = negamax(
+                board, 
+                &mut search_info, 
+                depth, 
+                0, 
+                -1_000_000,
+                1_000_000
+            );
             if search_info.ended {
                 break;
             }
@@ -81,7 +88,7 @@ impl<const T: usize> EngineBehavior<T> for AmpersandEngine<T> {
 
     fn get_engine_info(&mut self) -> EngineInfo {
         EngineInfo {
-            name: "Ampersand v0.0.1",
+            name: "Ampersand v0.0.2",
             author: "Corman"
         }
     }
