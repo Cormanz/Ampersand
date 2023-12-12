@@ -27,26 +27,101 @@ pub fn move_score<const T: usize>(
         },
         SimpleMove::Action(action) => {
             let opposing_team = board.state.teams[board.get_next_team(board.state.moving_team) as usize];
+
+            let mut score = 0;
     
             let dest = BitBoard::from_lsb(action.to);
-            if !(dest & opposing_team).is_set() {
-                return 0;
-            }
-
-            let mut captured_piece_type: usize = PAWN;
-            for piece_type in PAWN..KING {
-                if (board.state.pieces[piece_type] & dest).is_set() {
-                    captured_piece_type = piece_type;
-                    break;
+            if (dest & opposing_team).is_set() {
+                let mut captured_piece_type: usize = PAWN;
+                for piece_type in PAWN..KING {
+                    if (board.state.pieces[piece_type] & dest).is_set() {
+                        captured_piece_type = piece_type;
+                        break;
+                    }
                 }
+    
+                let moved = MATERIAL[&(action.piece_type as usize)];
+                let captured = MATERIAL[&captured_piece_type];            
+    
+                score += 1000 + (captured - moved);
             }
 
-            let moved = MATERIAL[&(action.piece_type as usize)];
-            let captured = MATERIAL[&captured_piece_type];            
+            /*
+            // Promotion ordering: to be tested.
+            if action.info >= 1 && action.piece_type == PAWN as u16 {
+                let promotion_type = action.info - 1;
+                score += MATERIAL[&(promotion_type as usize)];
+            }
+            */
 
-            1000 + (captured - moved)
+            score
         }
     }
+}
+
+fn quiescence<const T: usize>(
+    board: &mut Board<T>, 
+    search_info: &mut SearchInfo,
+    mut alpha: i32,
+    beta: i32
+) -> i32 {
+    let stand_pat = evaluate(board);
+    if stand_pat >= beta { return beta; }
+    if alpha < stand_pat { alpha = stand_pat; }
+
+    let moves = board.generate_moves(NORMAL_MODE);
+
+    let mut scored_moves = moves.into_iter().map(|action| {
+        let score = move_score(board, &action);
+        (action, score)
+    }).collect::<Vec<_>>();
+
+    scored_moves.sort_by(|&a, &b| {
+        b.1.cmp(&a.1)
+    });
+
+    let opposing_team = board.state.teams[board.get_next_team(board.state.moving_team) as usize];
+    for (action, _score) in scored_moves {
+        let dest = match action {
+            SimpleMove::Pass => continue,
+            SimpleMove::Action(action) => {
+                BitBoard::from_lsb(action.to)
+            }
+        };
+
+        if !(dest & opposing_team).is_set() { continue; }
+
+        let mut undo: Option<HistoryMove<T>> = None;
+        let MoveLegalResponse { is_legal, made_move } = board.game.controller.is_legal(board, &action, false);
+        if !is_legal {
+            if let Some(made_move) = made_move {
+                board.undo_move(made_move);
+                continue;
+            }
+        }
+
+        if let Some(made_move) = made_move {
+            undo = made_move;
+        }
+        
+        if undo.is_none() {
+            undo = board.make_move(&action);
+        }
+
+        search_info.nodes += 1;
+        let score = -quiescence(board, search_info, -beta, -alpha);
+        board.undo_move(undo);
+
+        if score > alpha {
+            alpha = score;
+        }
+
+        if alpha >= beta {
+            break; // Beta cutoff
+        }
+    }
+    
+    alpha
 }
 
 pub fn negamax<const T: usize>(
@@ -58,7 +133,7 @@ pub fn negamax<const T: usize>(
     beta: i32
 ) -> i32 {
     if depth == 0 { 
-        let eval = evaluate(board);
+        let eval = quiescence(board, search_info, alpha, beta);
         return eval;
     }
 
@@ -114,17 +189,17 @@ pub fn negamax<const T: usize>(
         search_info.nodes += 1;
         let score = -negamax(board, search_info, depth - 1, ply + 1, -beta, -alpha);
         board.undo_move(undo);
+        
+        legal_moves.push(action);
 
         if score > max {
             best_move = Some(action);
             max = score;
         }
 
-        if max > alpha {
-            alpha = max;
+        if score > alpha {
+            alpha = score;
         }
-
-        legal_moves.push(action);
 
         if alpha >= beta {
             break; // Beta cutoff
