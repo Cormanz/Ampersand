@@ -1,4 +1,4 @@
-use monster_chess::{board::{Board, game::{NORMAL_MODE, GameResults}, actions::{Move, SimpleMove}, tests::get_time_ms}, games::chess::{pieces::{KING, PAWN, QUEEN, KNIGHT}, ATTACKS_MODE}, bitboard::BitBoard};
+use monster_chess::{board::{Board, game::{NORMAL_MODE, GameResults, MoveLegalResponse}, actions::{Move, SimpleMove, HistoryMove}, tests::get_time_ms}, games::chess::{pieces::{KING, PAWN, QUEEN, KNIGHT}, ATTACKS_MODE}, bitboard::BitBoard};
 use rand::rngs::StdRng;
 
 use crate::evaluate::{evaluate, MATERIAL};
@@ -80,19 +80,7 @@ pub fn negamax<const T: usize>(
     let mut max = -1_000_000;
     let mut best_move: Option<Move> = None;
 
-    let moves = board.generate_legal_moves(NORMAL_MODE);
-    
-    let resolution = board.game.resolution.resolve(board, &moves);
-
-    match resolution {
-        GameResults::Ongoing => {},
-        GameResults::Draw => {
-            return 0;
-        },
-        GameResults::Win(team) => {
-            return if team == board.state.moving_team { 100_000 - (ply as i32) } else { -100_000 + (ply as i32) };
-        }
-    }
+    let moves = board.generate_moves(NORMAL_MODE);
 
     let mut scored_moves = moves.into_iter().map(|action| {
         let score = move_score(board, &action);
@@ -103,9 +91,27 @@ pub fn negamax<const T: usize>(
         b.1.cmp(&a.1)
     });
 
+    let mut legal_moves: Vec<Move> = vec![];
+
     for (action, _score) in scored_moves {
+        let mut undo: Option<HistoryMove<T>> = None;
+        let MoveLegalResponse { is_legal, made_move } = board.game.controller.is_legal(board, &action, false);
+        if !is_legal {
+            if let Some(made_move) = made_move {
+                board.undo_move(made_move);
+                continue;
+            }
+        }
+
+        if let Some(made_move) = made_move {
+            undo = made_move;
+        }
+        
+        if undo.is_none() {
+            undo = board.make_move(&action);
+        }
+
         search_info.nodes += 1;
-        let undo = board.make_move(&action);
         let score = -negamax(board, search_info, depth - 1, ply + 1, -beta, -alpha);
         board.undo_move(undo);
 
@@ -118,6 +124,8 @@ pub fn negamax<const T: usize>(
             alpha = max;
         }
 
+        legal_moves.push(action);
+
         if alpha >= beta {
             break; // Beta cutoff
         }
@@ -125,6 +133,18 @@ pub fn negamax<const T: usize>(
 
     if ply == 0 && !search_info.ended {
         search_info.best_move = best_move;
+    }
+
+    let resolution = board.game.resolution.resolve(board, &legal_moves);
+
+    match resolution {
+        GameResults::Ongoing => {},
+        GameResults::Draw => {
+            return 0;
+        },
+        GameResults::Win(team) => {
+            return if team == board.state.moving_team { 100_000 - (ply as i32) } else { -100_000 + (ply as i32) };
+        }
     }
     
     return max;
