@@ -1,9 +1,21 @@
-use std::os::unix::thread;
+use std::{os::unix::thread, collections::HashMap};
 
-use monster_chess::{board::Board, games::chess::pieces::{PAWN, BISHOP, KNIGHT, QUEEN, ROOK}, bitboard::BitBoard};
+use lazy_static::lazy_static;
+use monster_chess::{board::Board, games::chess::pieces::{PAWN, BISHOP, KNIGHT, QUEEN, ROOK, KING}, bitboard::BitBoard};
 use rand::{random, thread_rng, Rng, rngs::StdRng, SeedableRng};
 
 use crate::search::SearchInfo;
+
+lazy_static! {
+    pub static ref MATERIAL: HashMap<usize, i32> = [
+        (PAWN, 100),
+        (KNIGHT, 325),
+        (BISHOP, 350),
+        (ROOK, 500),
+        (QUEEN, 900),
+        (KING, 10_000)
+    ].into();
+}
 
 struct Teams<const T: usize> {
     team: BitBoard<T>, 
@@ -42,9 +54,9 @@ pub fn evaluate<const T: usize>(
 
     let rand = thread_rng().gen_range(-20..20);
 
-    teams.material_difference(pawns, 100) +
-    teams.material_difference(knights, 325) +
-    teams.material_difference(bishops, 350) +
-    teams.material_difference(rooks, 500) +
-    teams.material_difference(queens, 900) + rand
+    teams.material_difference(pawns, MATERIAL[&PAWN]) +
+    teams.material_difference(knights, MATERIAL[&KNIGHT]) +
+    teams.material_difference(bishops, MATERIAL[&BISHOP]) +
+    teams.material_difference(rooks, MATERIAL[&ROOK]) +
+    teams.material_difference(queens, MATERIAL[&QUEEN]) + rand
 }
