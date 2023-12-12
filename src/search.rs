@@ -21,7 +21,9 @@ pub fn negamax<const T: usize>(
     board: &mut Board<T>, 
     search_info: &mut SearchInfo,
     depth: u32, 
-    ply: u32
+    ply: u32,
+    mut alpha: i32,
+    beta: i32
 ) -> i32 {
     if depth == 0 { 
         let eval = evaluate(board);
@@ -64,12 +66,21 @@ pub fn negamax<const T: usize>(
 
         search_info.nodes += 1;
         let undo = board.make_move(&action);
-        let score = -negamax(board, search_info, depth - 1, ply + 1);
+        let score = -negamax(board, search_info, depth - 1, ply + 1, -beta, -alpha);
+        board.undo_move(undo);
+
         if score > max {
             best_move = Some(action);
             max = score;
         }
-        board.undo_move(undo);
+
+        if max > alpha {
+            alpha = max;
+        }
+
+        if alpha >= beta {
+            break; // Beta cutoff
+        }
     }
 
     if ply == 0 && !search_info.ended {
