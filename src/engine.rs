@@ -88,7 +88,7 @@ impl<const T: usize> EngineBehavior<T> for AmpersandEngine<T> {
 
     fn get_engine_info(&mut self) -> EngineInfo {
         EngineInfo {
-            name: "Ampersand v0.0.3",
+            name: "Ampersand v0.0.5",
             author: "Corman"
         }
     }
