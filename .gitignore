@@ -1,0 +1,7 @@
+/target
+perf.data
+sprt.bash
+stockfish-ubuntu-x86-64-modern
+UHO_4060_v2.epd
+flamegraph.svg
+games.pgn
