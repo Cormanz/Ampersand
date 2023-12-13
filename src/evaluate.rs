@@ -100,7 +100,8 @@ pub fn reverse_pst(pst: &[ i32; 64 ]) -> [ i32; 64 ] {
 
 struct Teams<const T: usize> {
     team: BitBoard<T>, 
-    opposing_team: BitBoard<T>
+    opposing_team: BitBoard<T>,
+    team_ind: usize
 }
 
 impl <const T: usize> Teams<T> {
@@ -121,16 +122,29 @@ impl <const T: usize> Teams<T> {
         piece_square_table: [ i32; 64 ],
         piece_square_table_reversed: [ i32; 64 ]
     ) -> i32 {
-        let home_pieces = (pieces & self.team)
+        let (white, black) = if self.team_ind == 0 {
+            (self.team, self.opposing_team)
+        } else {
+            (self.opposing_team, self.team)
+        };
+
+        let white_pieces = (pieces & white)
             .iter_set_bits(64)
             .map(|pos| piece_square_table[pos as usize])
             .reduce(|acc, cur| acc + cur)
             .unwrap_or(0);
-        let opposing_pieces = (pieces & self.opposing_team)
+
+        let black_pieces = (pieces & black)
             .iter_set_bits(64)
             .map(|pos| piece_square_table_reversed[pos as usize])
             .reduce(|acc, cur| acc + cur)
             .unwrap_or(0);
+
+        let (home_pieces, opposing_pieces) = if self.team_ind == 0 {
+            (white_pieces, black_pieces)
+        } else {
+            (black_pieces, white_pieces)
+        };
 
         home_pieces - opposing_pieces
     }
@@ -148,12 +162,17 @@ impl <const T: usize> Teams<T> {
 pub fn evaluate<const T: usize>(
     board: &mut Board<T>
 ) -> i32 {
-    let team = board.state.teams[board.state.moving_team as usize];
-    let opposing_team = board.state.teams[board.get_next_team(board.state.moving_team) as usize];
+    let team_ind = board.state.moving_team as usize;
+    let team = board.state.teams[team_ind];
+
+    let opposing_team_ind = board.get_next_team(board.state.moving_team) as usize;
+    let opposing_team = board.state.teams[opposing_team_ind];
 
     let teams = Teams {
         team,
-        opposing_team
+        opposing_team,
+        team_ind
+
     };
 
     let pawns = board.state.pieces[PAWN];
