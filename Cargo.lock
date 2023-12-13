@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "Ampersand"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "lazy_static",
  "monster_chess",
@@ -85,9 +85,9 @@ dependencies = [
 
 [[package]]
 name = "monster_ugi"
-version = "0.0.19"
+version = "0.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b131e5b902333879ff8f3459bd0c9b7f5e42647930094ca6f1aa52a99618882"
+checksum = "79822dd72b05f1f0cd32b0e8eb829fb8ce8344128383a70a8775b36352d5c623"
 dependencies = [
  "monster_chess",
  "rand",
