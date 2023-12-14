@@ -3,7 +3,7 @@ use rand::{rngs::ThreadRng, SeedableRng};
 
 use monster_ugi::engine::{EngineBehavior, Info, TimeControl, MoveSelectionResults, EngineInfo};
 
-use crate::search::{SearchInfo, negamax, SearchEnd};
+use crate::search::{SearchInfo, negamax, SearchEnd, TT_LEN};
 
 pub struct AmpersandEngine<const T: usize>(pub ThreadRng);
 
@@ -32,11 +32,10 @@ impl<const T: usize> EngineBehavior<T> for AmpersandEngine<T> {
             best_move: None,
             search_end,
             nodes: 0,
+            transposition_table: vec![ None; TT_LEN ],
             ended: false
         };
         let mut score: i32 = 0;
-        let mut total_time: u128 = 0;
-        let mut total_nodes: u64 = 0;
 
         loop {
             depth += 1;
@@ -62,9 +61,6 @@ impl<const T: usize> EngineBehavior<T> for AmpersandEngine<T> {
             let mut time = end - start;
             
             if time == 0 { time = 1; }
-
-            total_time += time;
-            total_nodes += search_info.nodes;
 
             self.info(Info {
                 depth: Some(depth),

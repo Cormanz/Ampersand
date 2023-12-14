@@ -10,10 +10,29 @@ pub enum SearchEnd {
     None
 }
 
+#[derive(Clone, Copy)]
+pub enum Flag {
+    Exact,
+    UpperBound,
+    LowerBound
+}
+
+#[derive(Clone, Copy)]
+pub struct TranspositionEntry {
+    pub depth: u32,
+    pub score: i32,
+    pub best_move: Option<Move>,
+    pub hash: u64,
+    pub flag: Flag
+}
+
+pub const TT_LEN: usize = 2usize.pow(20);
+
 pub struct SearchInfo {
     pub best_move: Option<Move>,
     pub nodes: u64,
     pub search_end: SearchEnd,  
+    pub transposition_table: Vec<Option<TranspositionEntry>>,
     pub ended: bool
 }
 
@@ -130,7 +149,7 @@ pub fn negamax<const T: usize>(
     depth: u32, 
     ply: u32,
     mut alpha: i32,
-    beta: i32
+    mut beta: i32
 ) -> i32 {
     if depth == 0 { 
         let eval = quiescence(board, search_info, alpha, beta);
@@ -139,7 +158,7 @@ pub fn negamax<const T: usize>(
 
     if search_info.ended { return 0; }
 
-    if depth > 1 {
+    if depth > 2 {
         let end_early = match search_info.search_end {
             SearchEnd::Nodes(nodes) => search_info.nodes >= nodes,
             SearchEnd::Time(time) => get_time_ms() >= time,
@@ -149,6 +168,31 @@ pub fn negamax<const T: usize>(
         if end_early {
             search_info.ended = true;
             return 0;
+        }
+    }
+
+    let alpha_original = alpha;
+
+    let hash = board.game.zobrist.compute(board);
+    let hash_id = (hash as usize) % TT_LEN;
+
+    if let Some(record) = search_info.transposition_table[hash_id] {
+        if ply > 0 && record.hash == hash && record.depth >= depth {
+            match record.flag {
+                Flag::Exact => {
+                    return record.score;
+                },
+                Flag::LowerBound => {
+                    if record.score >= beta {
+                        return record.score;
+                    }
+                },
+                Flag::UpperBound => {
+                    if record.score <= alpha {
+                        return record.score;
+                    }
+                }
+            }
         }
     }
 
@@ -211,16 +255,29 @@ pub fn negamax<const T: usize>(
     }
 
     let resolution = board.game.resolution.resolve(board, &legal_moves);
-
-    match resolution {
-        GameResults::Ongoing => {},
-        GameResults::Draw => {
-            return 0;
-        },
+    let score = match resolution {
+        GameResults::Ongoing => { max },
+        GameResults::Draw => { 0 },
         GameResults::Win(team) => {
-            return if team == board.state.moving_team { 100_000 - (ply as i32) } else { -100_000 + (ply as i32) };
+            if team == board.state.moving_team { 100_000 - (ply as i32) } else { -100_000 + (ply as i32) }
         }
-    }
+    };
+
+    let flag = if max <= alpha_original {
+        Flag::UpperBound
+    } else if max >= beta {
+        Flag::LowerBound
+    } else {
+        Flag::Exact
+    };
+
+    search_info.transposition_table[hash_id] = Some(TranspositionEntry {
+        depth,
+        score,
+        best_move,
+        flag,
+        hash
+    });
     
-    return max;
+    return score;
 }
